@@ -1,0 +1,44 @@
+<html>
+<head>
+  <title>Simple FCFS Scheduling</title>
+</head>
+<body>
+  <h1>FCFS CPU Scheduling Algorithm (Simple)</h1>
+
+  <p>Enter burst times for 4 processes:</p>
+
+  <label>Process 1: <input type="number" id="bt1" value="6" min="1"></label><br>
+  <label>Process 2: <input type="number" id="bt2" value="8" min="1"></label><br>
+  <label>Process 3: <input type="number" id="bt3" value="7" min="1"></label><br>
+  <label>Process 4: <input type="number" id="bt4" value="3" min="1"></label><br><br>
+
+  <button onclick="calculateFCFS()">Calculate</button>
+
+  <h2>Results:</h2>
+  <pre id="output"></pre>
+
+  <script>
+    function calculateFCFS() {
+      let burstTimes = [];
+      burstTimes.push(parseInt(document.getElementById('bt1').value));
+      burstTimes.push(parseInt(document.getElementById('bt2').value));
+      burstTimes.push(parseInt(document.getElementById('bt3').value));
+      burstTimes.push(parseInt(document.getElementById('bt4').value));
+
+      let waitingTime = [0, 0, 0, 0];
+      let turnaroundTime = [0, 0, 0, 0];
+      for (let i = 1; i < 4; i++) {
+        waitingTime[i] = waitingTime[i - 1] + burstTimes[i - 1];
+      }
+      for (let i = 0; i < 4; i++) {
+        turnaroundTime[i] = waitingTime[i] + burstTimes[i];
+      }
+      let result = "Process\tBurst Time\tWaiting Time\tTurnaround Time\n";
+      for (let i = 0; i < 4; i++) {
+        result += `P${i+1}\t\t${burstTimes[i]}\t\t${waitingTime[i]}\t\t${turnaroundTime[i]}\n`;
+      }
+      document.getElementById('output').textContent = result;
+    }
+  </script>
+</body>
+</html>
