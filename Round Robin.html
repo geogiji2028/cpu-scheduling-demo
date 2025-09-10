@@ -1,0 +1,71 @@
+<html>
+<head>
+<title>Simple Round Robin Scheduling</title>
+</head>
+<body>
+<h1>Round Robin CPU Scheduling Algorithm (Simple)</h1>
+<p>Enter burst times for 4 processes:</p>
+<label>Process 1: <input type="number" id="bt1" value="6" min="1"></label><br>
+<label>Process 2: <input type="number" id="bt2" value="8" min="1"></label><br>
+<label>Process 3: <input type="number" id="bt3" value="7" min="1"></label><br>
+<label>Process 4: <input type="number" id="bt4" value="3" min="1"></label><br><br>
+
+<label>Time Quantum: <input type="number" id="quantum" value="2" min="1"></label><br><br>
+
+<button onclick="calculateRR()">Calculate</button>
+
+<h2>Results:</h2>
+<pre id="output"></pre>
+
+<script>
+function calculateRR() {
+    let burstTimes = [
+        parseInt(document.getElementById('bt1').value),
+        parseInt(document.getElementById('bt2').value),
+        parseInt(document.getElementById('bt3').value),
+        parseInt(document.getElementById('bt4').value)
+    ];
+    let n = burstTimes.length;
+    let quantum = parseInt(document.getElementById('quantum').value);
+
+    let remaining = [...burstTimes];
+    let waitingTime = Array(n).fill(0);
+    let turnaroundTime = Array(n).fill(0);
+
+    let t = 0; // current time
+    let done = false;
+
+    while (true) {
+        done = true;
+
+        for (let i = 0; i < n; i++) {
+            if (remaining[i] > 0) {
+                done = false;
+
+                if (remaining[i] > quantum) {
+                    t += quantum;
+                    remaining[i] -= quantum;
+                } else {
+                    t += remaining[i];
+                    waitingTime[i] = t - burstTimes[i];
+                    remaining[i] = 0;
+                }
+            }
+        }
+        if (done) break;
+    }
+
+    for (let i = 0; i < n; i++) {
+        turnaroundTime[i] = burstTimes[i] + waitingTime[i];
+    }
+
+    let result = "Process\tBurst Time\tWaiting Time\tTurnaround Time\n";
+    for (let i = 0; i < n; i++) {
+        result += `P${i+1}\t\t${burstTimes[i]}\t\t${waitingTime[i]}\t\t${turnaroundTime[i]}\n`;
+    }
+
+    document.getElementById('output').textContent = result;
+}
+</script>
+</body>
+</html>
