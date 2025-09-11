@@ -1,0 +1,275 @@
+<html lang="en"> 
+<head> 
+  <meta charset="UTF-8" /> 
+  <meta name="viewport" content="width=device-width, initial-scale=1" /> 
+  <title>SJF (Shortest Job First) — Interactive Demo</title> 
+  <style> 
+    :root{ --bg:#0b1020; --card:#121933; --ink:#e6e9f7; --muted:#9aa3c7; --accent:#6ea8fe; } 
+    *{ box-sizing:border-box; } 
+    body{ margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif; 
+background:var(--bg); color:var(--ink); } 
+    .wrap{ max-width:1000px; margin:40px auto; padding:0 16px; } 
+    h1{ font-weight:800; letter-spacing:.2px; margin:0 0 6px; } 
+    p.sub{ color:var(--muted); margin:0 0 24px; } 
+ 
+    .card{ background:var(--card); border:1px solid rgba(255,255,255,.06); border-radius:16px; 
+padding:18px; box-shadow:0 10px 30px rgba(0,0,0,.25); } 
+    .grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; } 
+    @media (max-width:850px){ .grid{ grid-template-columns:1fr; } } 
+ 
+    table{ width:100%; border-collapse:collapse; overflow:hidden; border-radius:12px; } 
+    thead th{ background:#0f244f; color:#b6c7ff; text-align:left; font-size:14px; letter-spacing:.2px; 
+padding:10px 10px; } 
+    tbody td{ border-top:1px solid rgba(255,255,255,.08); padding:10px; } 
+    tbody tr:hover{ background:rgba(255,255,255,.03); } 
+    input[type="number"], input[type="text"]{ 
+      width:100%; padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.14); 
+      background:#0f1430; color:var(--ink); 
+    } 
+    .controls{ display:flex; gap:10px; flex-wrap:wrap; margin:12px 0 6px; } 
+    button{ 
+      background:var(--accent); color:#0a1025; border:0; padding:10px 14px; border-radius:12px; 
+font-weight:700; cursor:pointer; 
+    } 
+    button.secondary{ background:#1e2a57; color:#d6dcff; } 
+    .pill{ display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:6px 10px; 
+border-radius:999px; background:#0e224b; color:#bcd2ff; } 
+ 
+    .gantt{ width:100%; overflow:auto; padding:10px; background:#0f1430; border-radius:12px; 
+border:1px solid rgba(255,255,255,.12); } 
+    .legend{ display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 0; } 
+    .chip{ display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; 
+border:1px solid rgba(255,255,255,.1); } 
+    .swatch{ width:14px; height:14px; border-radius:3px; display:inline-block; } 
+ 
+    .result{ margin-top:16px; } 
+    .muted{ color:var(--muted); } 
+    .small{ font-size:13px; } 
+    .center{ text-align:center; } 
+  </style> 
+</head> 
+<body> 
+  <div class="wrap"> 
+    <h1>SJF — Shortest Job First (Non‑Preemptive)</h1> 
+    <p class="sub">Enter processes and burst times. Click <b>Run SJF</b> to compute Waiting 
+Time (WT), Turnaround Time (TAT), and see the Gantt chart.</p> 
+ 
+    <div class="grid"> 
+      <div class="card"> 
+        <div class="controls"> 
+          <button id="addRow">+ Add process</button> 
+          <button class="secondary" id="resetRows">Reset sample</button> 
+          <span class="pill">Assumption: all arrivals at t=0 (non‑preemptive)</span> 
+        </div> 
+        <table> 
+          <thead> 
+            <tr> 
+              <th style="width:120px">Process ID</th> 
+              <th>Burst Time</th> 
+            </tr> 
+          </thead> 
+          <tbody id="tbody"></tbody> 
+        </table> 
+        <div class="controls"> 
+          <button id="run">▶ Run SJF</button> 
+          <button class="secondary" id="clear">Clear results</button> 
+        </div> 
+      </div> 
+ 
+      <div class="card"> 
+        <h3 style="margin-top:0">Results</h3> 
+        <div id="summary" class="small muted">Run the algorithm to see results…</div> 
+        <div id="tableWrap" class="result"></div> 
+        <div class="result"> 
+          <div class="gantt" id="gantt"></div> 
+          <div class="legend" id="legend"></div> 
+        </div> 
+      </div> 
+    </div> 
+ 
+    <p class="small muted center" style="margin-top:22px">Tip: SJF orders jobs by ascending 
+burst time. Waiting time for job i equals the sum of all earlier burst times in that order.</p> 
+  </div> 
+ 
+  <script> 
+    const tbody = document.getElementById('tbody'); 
+    const addRowBtn = document.getElementById('addRow'); 
+    const resetBtn = document.getElementById('resetRows'); 
+    const runBtn = document.getElementById('run'); 
+    const clearBtn = document.getElementById('clear'); 
+ 
+    const summary = document.getElementById('summary'); 
+    const tableWrap = document.getElementById('tableWrap'); 
+    const gantt = document.getElementById('gantt'); 
+    const legend = document.getElementById('legend'); 
+ 
+    const colors = [ 
+      '#8ecae6','#a3c4f3','#bde0fe','#caffbf','#ffd6a5','#ffadad','#fdffb6', 
+      '#bdb2ff','#ffc6ff','#90dbf4','#98f5e1','#f1c0e8','#fcd5ce','#e2afff' 
+    ]; 
+ 
+    function row(pid, bt){ 
+      const tr = document.createElement('tr'); 
+      tr.innerHTML = ` 
+        <td><input type="text" value="${pid}" placeholder="P1"/></td> 
+        <td><input type="number" min="1" step="1" value="${bt}"/></td>`; 
+      return tr; 
+    } 
+ 
+    function seed(){ 
+      tbody.innerHTML = ''; 
+      [['P1',6],['P2',8],['P3',7],['P4',3]].forEach(([p,b])=>tbody.appendChild(row(p,b))); 
+      tableWrap.innerHTML = ''; 
+      gantt.innerHTML = ''; 
+      legend.innerHTML = ''; 
+      summary.textContent = 'Sample loaded. Click “Run SJF”.'; 
+    } 
+ 
+    addRowBtn.onclick = () => tbody.appendChild(row(`P${tbody.children.length+1}`, 1)); 
+    resetBtn.onclick = seed; 
+    clearBtn.onclick = () => { tableWrap.innerHTML=''; gantt.innerHTML=''; legend.innerHTML=''; 
+summary.textContent='Cleared. Enter data and run again.'; }; 
+ 
+    function readData(){ 
+      const rows = [...tbody.querySelectorAll('tr')]; 
+      const data = rows.map(r=>{ 
+        const [pidInp, btInp] = r.querySelectorAll('input'); 
+        return { pid: (pidInp.value||'P?').trim(), bt: Number(btInp.value) }; 
+      }).filter(x=>Number.isFinite(x.bt) && x.bt>0); 
+      return data; 
+    } 
+ 
+    function sjf(data){ 
+      // Non‑preemptive SJF with all arrivals at 0 
+      const sorted = [...data].sort((a,b)=>a.bt-b.bt); 
+      let time = 0; 
+      const results = sorted.map((job,i)=>{ 
+        const start = time; 
+        const finish = start + job.bt; 
+        const wt = start;            // since all arrivals at 0 
+        const tat = wt + job.bt; 
+        time = finish; 
+        return { ...job, start, finish, wt, tat }; 
+      }); 
+      const avgWT = results.reduce((s,x)=>s+x.wt,0)/results.length; 
+      const avgTAT = results.reduce((s,x)=>s+x.tat,0)/results.length; 
+      return { results, avgWT, avgTAT }; 
+    } 
+ 
+    function renderTable(out){ 
+      const {results, avgWT, avgTAT} = out; 
+      const table = document.createElement('table'); 
+      table.innerHTML = ` 
+        <thead><tr> 
+          <th>Process</th><th>Burst</th><th>Start</th><th>Finish</th> 
+          <th>Waiting (WT)</th><th>Turnaround (TAT)</th> 
+        </tr></thead> 
+        <tbody>${results.map(r=>` 
+          <tr> 
+            <td>${r.pid}</td><td>${r.bt}</td><td>${r.start}</td><td>${r.finish}</td> 
+            <td>${r.wt}</td><td>${r.tat}</td> 
+          </tr>`).join('')}</tbody>`; 
+      const footer = document.createElement('div'); 
+      footer.style.marginTop = '10px'; 
+      footer.innerHTML = `<span class="pill">Avg WT: <b>${avgWT.toFixed(2)}</b></span> `+ 
+                         `<span class="pill">Avg TAT: <b>${avgTAT.toFixed(2)}</b></span>`; 
+      tableWrap.innerHTML = ''; 
+      tableWrap.appendChild(table); 
+      tableWrap.appendChild(footer); 
+    } 
+ 
+    function renderGantt(out){ 
+      const {results} = out; 
+      if (!results.length){ gantt.textContent = 'No data.'; return; } 
+      const total = results.at(-1).finish; 
+      const pxPerUnit = Math.max(18, Math.min(60, Math.floor(760/total))); 
+      const h = 70, pad = 12; 
+ 
+      const svg = document.createElementNS('http://www.w3.org/2000/svg','svg'); 
+      svg.setAttribute('width', total*pxPerUnit + pad*2); 
+      svg.setAttribute('height', h + 36); 
+ 
+      // Background 
+      const bg = document.createElementNS(svg.namespaceURI,'rect'); 
+      bg.setAttribute('x', 0); bg.setAttribute('y', 0); 
+      bg.setAttribute('width', total*pxPerUnit + pad*2); 
+      bg.setAttribute('height', h + 36); 
+      bg.setAttribute('fill', '#0b1130'); 
+      bg.setAttribute('rx', 10); 
+      svg.appendChild(bg); 
+ 
+      results.forEach((r, i)=>{ 
+        const x = pad + r.start*pxPerUnit; 
+        const w = r.bt*pxPerUnit; 
+        const color = colors[i % colors.length]; 
+        const rect = document.createElementNS(svg.namespaceURI,'rect'); 
+        rect.setAttribute('x', x); 
+        rect.setAttribute('y', 14); 
+        rect.setAttribute('width', w); 
+        rect.setAttribute('height', 40); 
+        rect.setAttribute('rx', 8); 
+        rect.setAttribute('fill', color); 
+        rect.setAttribute('opacity','0.95'); 
+        svg.appendChild(rect); 
+ 
+        const label = document.createElementNS(svg.namespaceURI,'text'); 
+        label.setAttribute('x', x + w/2); 
+        label.setAttribute('y', 38); 
+        label.setAttribute('text-anchor','middle'); 
+        label.setAttribute('fill','#0b1020'); 
+        label.setAttribute('font-weight','700'); 
+        label.textContent = r.pid; 
+        svg.appendChild(label); 
+ 
+        // Tick + time marker at finish 
+        const tick = document.createElementNS(svg.namespaceURI,'line'); 
+        tick.setAttribute('x1', pad + r.finish*pxPerUnit); 
+        tick.setAttribute('y1', 56); 
+        tick.setAttribute('x2', pad + r.finish*pxPerUnit); 
+        tick.setAttribute('y2', 62); 
+        tick.setAttribute('stroke', '#94a3b8'); 
+        svg.appendChild(tick); 
+ 
+        const tText = document.createElementNS(svg.namespaceURI,'text'); 
+        tText.setAttribute('x', pad + r.finish*pxPerUnit); 
+        tText.setAttribute('y', 76); 
+        tText.setAttribute('text-anchor','middle'); 
+        tText.setAttribute('fill', '#bcd2ff'); 
+        tText.setAttribute('font-size','12'); 
+        tText.textContent = r.finish; 
+        svg.appendChild(tText); 
+      }); 
+ 
+      // Zero marker 
+      const zero = document.createElementNS(svg.namespaceURI,'text'); 
+      zero.setAttribute('x', pad); 
+      zero.setAttribute('y', 76); 
+      zero.setAttribute('fill', '#bcd2ff'); 
+      zero.setAttribute('font-size','12'); 
+      zero.textContent = '0'; 
+      svg.appendChild(zero); 
+ 
+      gantt.innerHTML = ''; 
+      gantt.appendChild(svg); 
+ 
+      // Legend 
+      legend.innerHTML = results.map((r,i)=>` 
+        <span class="chip"><span class="swatch" 
+style="background:${colors[i%colors.length]}"></span>${r.pid}: ${r.bt}</span> 
+      `).join(''); 
+    } 
+ 
+    runBtn.onclick = () => { 
+      const data = readData(); 
+if (!data.length){ summary.textContent = 'Please add at least one valid process.'; return; } 
+const out = sjf(data); 
+renderTable(out); 
+renderGantt(out); 
+summary.textContent = `Order: ${out.results.map(r=>r.pid).join(' → ')}  |  Total time: 
+${out.results.at(-1).finish}`; 
+}; 
+// Init 
+seed(); 
+</script> 
+</body> 
+</html>
